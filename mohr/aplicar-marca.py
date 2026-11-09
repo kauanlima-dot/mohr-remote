@@ -31,12 +31,12 @@ TRAVADAS = {
     "custom-rendezvous-server": SERVIDOR_ID,
     "relay-server": SERVIDOR_RELAY,
     "key": CHAVE,
-    "approve-mode": "click",              # aceite por clique
+    "approve-mode": "password",           # acesso só com a senha definida na instalação, sem pedir permissão
+    "verification-method": "use-permanent-password",
     "allow-websocket": "N",
 }
 # Padrão: valem até alguém mudar.
 PADROES = {
-    "verification-method": "use-temporary-password",
     "enable-check-update": "N",           # não oferecer o RustDesk oficial
     "allow-auto-update": "N",
 }
@@ -150,13 +150,44 @@ def patch_layout(raiz: Path):
     sub_uma(home, r'translate\("Your Desktop"\)',
             f'({usuario} ? "Suporte remoto Max Mohr" : translate("Your Desktop"))', "título")
     sub_uma(home, r'translate\("desk_tip"\)',
-            f'({usuario} ? "Informe o código abaixo à equipe de TI. Ninguém acessa seu computador '
-            f'sem a sua autorização." : translate("desk_tip"))', "instrução")
+            f'({usuario} ? "Quando precisar de suporte, informe o código abaixo à equipe de TI '
+            f'da Max Mohr. O acesso é feito somente pela TI." : translate("desk_tip"))', "instrução")
 
     server = lib / "desktop/pages/server_page.dart"
     sub_uma(server, re.escape('"${translate("Request access to your device")}...",'),
-            f'({usuario} ? "A TI da Max Mohr quer acessar seu computador" : '
+            f'({usuario} ? "A TI da Max Mohr está acessando seu computador" : '
             '"${translate("Request access to your device")}..."),', "texto do pedido de acesso")
+
+
+def patch_login(raiz: Path):
+    """Login no app (versão TI) com as contas do painel. A tela fica em mohr/app/mohr_login.dart."""
+    origem = raiz / "mohr/app/mohr_login.dart"
+    if not origem.exists():
+        erros.append(f"{origem}: arquivo da tela de login não encontrado")
+        return
+    (raiz / "flutter/lib/desktop/pages/mohr_login.dart").write_text(origem.read_text(encoding="utf-8"),
+                                                                    encoding="utf-8", newline="\n")
+    print("ok  flutter/lib/desktop/pages/mohr_login.dart")
+    home = raiz / "flutter/lib/desktop/pages/desktop_home_page.dart"
+    sub_uma(home, re.escape("import 'package:flutter_hbb/desktop/pages/connection_page.dart';"),
+            "import 'package:flutter_hbb/desktop/pages/connection_page.dart';\n"
+            "import 'package:flutter_hbb/desktop/pages/mohr_login.dart';", "import da tela de login")
+    sub_uma(home, r'@override\s*Widget build\(BuildContext context\) \{\s*super\.build\(context\);',
+            "@override\n"
+            "  Widget build(BuildContext context) {\n"
+            "    super.build(context);\n"
+            "    // Mohr Remote: a versão TI exige login com a conta do painel.\n"
+            "    if (bind.isIncomingOnly()) return _mohrBuild(context);\n"
+            "    MohrSession.init();\n"
+            "    return Obx(() => MohrSession.loggedIn.value\n"
+            "        ? _mohrBuild(context)\n"
+            "        : const MohrLoginPage());\n"
+            "  }\n"
+            "\n"
+            "  Widget _mohrBuild(BuildContext context) {", "trava de login na tela inicial")
+    sub_uma(home, r'child: loadLogo\(\),\s*\),',
+            "child: loadLogo(),\n      ),\n      if (!isIncomingOnly) const MohrSessionBar(),",
+            "barra do técnico logado")
 
 
 def patch_metadados(raiz: Path):
@@ -286,6 +317,7 @@ def main():
     patch_config(raiz, args.variante)
     patch_codigo(raiz)
     patch_layout(raiz)
+    patch_login(raiz)
     patch_metadados(raiz)
     patch_icones(raiz)
     if erros:
