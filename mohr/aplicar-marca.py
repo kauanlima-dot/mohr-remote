@@ -9,6 +9,7 @@ Falha (exit 1) se algum ponto de patch não for encontrado — melhor quebrar o
 build do que gerar um cliente apontando para o servidor público da RustDesk.
 """
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -25,14 +26,26 @@ SERVIDOR_ID = "143.95.172.62"            # porta 21116 é o padrão
 SERVIDOR_RELAY = "143.95.172.62:21117"
 CHAVE = "qCsOGI3q3tT5EuSoLJn0GODVRGzKBA2X4uN9497qz8Q="
 
-# Valores padrão (o usuário/script ainda pode mudar; para travar, veja OVERWRITE no LEIA-ME)
-PADROES = {
-    "approve-mode": "click",              # aceite por clique
-    "verification-method": "use-temporary-password",
-    "allow-websocket": "N",
+# Travadas: o usuário não consegue mudar (aparecem bloqueadas na tela de configurações).
+TRAVADAS = {
+    "custom-rendezvous-server": SERVIDOR_ID,
     "relay-server": SERVIDOR_RELAY,
+    "key": CHAVE,
+    "approve-mode": "click",              # aceite por clique
+    "allow-websocket": "N",
+}
+# Padrão: valem até alguém mudar.
+PADROES = {
+    "verification-method": "use-temporary-password",
     "enable-check-update": "N",           # não oferecer o RustDesk oficial
     "allow-auto-update": "N",
+}
+# Por variante do build (env MOHR_VARIANTE ou --variante):
+#   usuario: só recebe acesso, sem tela de conectar e sem configurações
+#   ti:      cliente completo para a equipe de suporte
+FIXAS_POR_VARIANTE = {
+    "usuario": {"conn-type": "incoming", "disable-settings": "Y"},
+    "ti": {},
 }
 # -----------------------------------------------------------------------------
 
@@ -53,7 +66,24 @@ def rust_str(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def patch_config(raiz: Path):
+def mapa_rust(valores: dict) -> str:
+    if not valores:
+        return "Default::default()"
+    pares = ", ".join(f"({rust_str(k)}.to_owned(), {rust_str(v)}.to_owned())" for k, v in valores.items())
+    return f"RwLock::new(HashMap::from([{pares}]))"
+
+
+def patch_mapa(cfg: Path, nome: str, valores: dict):
+    if not valores:
+        print(f"ok  config.rs: {nome} sem alteração")
+        return
+    sub_uma(cfg,
+            rf'pub static ref {nome}: RwLock<HashMap<String, String>> = Default::default\(\);',
+            f'pub static ref {nome}: RwLock<HashMap<String, String>> = {mapa_rust(valores)};',
+            nome)
+
+
+def patch_config(raiz: Path, variante: str):
     cfg = raiz / "libs/hbb_common/src/config.rs"
     sub_uma(cfg,
             r'pub const RENDEZVOUS_SERVERS: &\[&str\] = &\[[^\]]*\];',
@@ -67,13 +97,9 @@ def patch_config(raiz: Path):
             r'pub static ref APP_NAME: RwLock<String> = RwLock::new\("RustDesk"\.to_owned\(\)\);',
             f'pub static ref APP_NAME: RwLock<String> = RwLock::new({rust_str(APP_NAME)}.to_owned());',
             "APP_NAME")
-    pares = ", ".join(f"({rust_str(k)}.to_owned(), {rust_str(v)}.to_owned())"
-                      for k, v in PADROES.items())
-    sub_uma(cfg,
-            r'pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = Default::default\(\);',
-            f'pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = '
-            f'RwLock::new(HashMap::from([{pares}]));',
-            "DEFAULT_SETTINGS")
+    patch_mapa(cfg, "DEFAULT_SETTINGS", PADROES)
+    patch_mapa(cfg, "OVERWRITE_SETTINGS", TRAVADAS)
+    patch_mapa(cfg, "HARD_SETTINGS", FIXAS_POR_VARIANTE[variante])
 
 
 def patch_metadados(raiz: Path):
@@ -87,25 +113,64 @@ def patch_metadados(raiz: Path):
     # LegalCopyright fica como está: o código é da Purslane (AGPL-3.0).
 
 
-def desenhar_simbolo():
-    """Símbolo Max Mohr (o "M" de triângulos azuis) sobre círculo branco, 1024x1024."""
+AZUL_ESCURO = (20, 33, 110)     # #14216E
+AZUL_MEDIO = (47, 99, 212)      # #2F63D4
+AZUL_CLARO = (110, 166, 230)    # #6EA6E6
+
+
+def desenhar_simbolo(n: int = 1024):
+    """Ícone Mohr Remote: quadrado arredondado em degradê azul, "M" branco geométrico e,
+    no vão do M, o triângulo azul-claro que remete ao símbolo da Max Mohr."""
     from PIL import Image, ImageDraw
-    n = 1024
+    s = n / 1024
+    # Degradê diagonal (canto superior esquerdo escuro -> inferior direito médio)
+    grad = Image.new("RGBA", (n, n))
+    px = grad.load()
+    for y in range(n):
+        for x in range(n):
+            t = (x + y) / (2 * (n - 1))
+            px[x, y] = tuple(round(a + (b - a) * t) for a, b in zip(AZUL_ESCURO, AZUL_MEDIO)) + (255,)
+    mask = Image.new("L", (n, n), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((40 * s, 40 * s, n - 40 * s, n - 40 * s), radius=230 * s, fill=255)
     img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    img.paste(grad, (0, 0), mask)
     d = ImageDraw.Draw(img)
-    d.ellipse((16, 16, n - 16, n - 16), fill=(255, 255, 255, 255))
-    # Coordenadas do símbolo no logo original (caixa 132x108), convertidas para o ícone
-    ox, oy, esc = 158, 92, 4.6
-    dx = (n - 132 * esc) / 2
-    dy = (n - 108 * esc) / 2
 
     def p(pts):
-        return [(dx + (x - ox) * esc, dy + (y - oy) * esc) for x, y in pts]
+        return [(x * s, y * s) for x, y in pts]
 
-    d.polygon(p([(160, 92), (188, 92), (248, 200), (220, 200)]), fill="#1E2A8A")  # barra
-    d.polygon(p([(224, 135), (290, 135), (252, 170)]), fill="#6EA6E6")            # triângulo claro
-    d.polygon(p([(160, 158), (160, 200), (200, 200)]), fill="#2F63D4")            # esquerda
-    d.polygon(p([(290, 158), (290, 200), (250, 200)]), fill="#1B3FC0")            # direita
+    # "M" em um único polígono (pernas de 110 px, diagonais encontrando-se no centro)
+    d.polygon(p([(262, 742), (262, 282), (382, 282), (512, 486), (642, 282), (762, 282),
+                 (762, 742), (652, 742), (652, 478), (512, 694), (372, 478), (372, 742)]), fill="white")
+    # Triângulo azul-claro no vão superior do M
+    d.polygon(p([(428, 282), (596, 282), (512, 414)]), fill=AZUL_CLARO + (255,))
+    return img
+
+
+def desenhar_logo_horizontal(icone):
+    """Logo do cabeçalho do app (600x120): ícone + "Mohr Remote" / "MAX MOHR"."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    def fonte(nomes, tamanho):
+        for nome in nomes:
+            try:
+                return ImageFont.truetype(nome, tamanho)
+            except OSError:
+                continue
+        return None
+
+    titulo = fonte(["segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"], 50)
+    sub = fonte(["segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"], 20)
+    if not titulo or not sub:
+        print("aviso: nenhuma fonte encontrada — logo horizontal não gerado")
+        return None
+    img = Image.new("RGBA", (600, 120), (0, 0, 0, 0))
+    img.paste(icone.resize((112, 112), Image.LANCZOS), (4, 4))
+    d = ImageDraw.Draw(img)
+    d.text((132, 20), "Mohr", font=titulo, fill=AZUL_MEDIO + (255,))
+    largura = d.textlength("Mohr ", font=titulo)
+    d.text((132 + largura, 20), "Remote", font=titulo, fill=AZUL_CLARO + (255,))
+    d.text((134, 80), "M A X   M O H R", font=sub, fill=(128, 140, 170, 255))
     return img
 
 
@@ -120,7 +185,7 @@ def patch_icones(raiz: Path):
             erros.append(f"{logo}: precisa ser quadrado e >= 256 px (ideal 1024x1024); veio {img.size}")
             return
     else:
-        print("mohr/marca/logo.png não existe — usando o símbolo Max Mohr desenhado pelo script")
+        print("mohr/marca/logo.png não existe — usando o ícone Mohr Remote desenhado pelo script")
         img = desenhar_simbolo()
 
     def png(dst: Path, lado: int):
@@ -147,13 +212,21 @@ def patch_icones(raiz: Path):
     if horiz.exists():
         (raiz / "flutter/assets/logo.png").write_bytes(horiz.read_bytes())
         print("ok  flutter/assets/logo.png")
+    else:
+        gerado = desenhar_logo_horizontal(img)
+        if gerado:
+            gerado.save(raiz / "flutter/assets/logo.png")
+            print("ok  flutter/assets/logo.png (gerado)")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raiz", default=".")
-    raiz = Path(ap.parse_args().raiz).resolve()
-    patch_config(raiz)
+    ap.add_argument("--variante", default=os.environ.get("MOHR_VARIANTE", "ti"), choices=sorted(FIXAS_POR_VARIANTE))
+    args = ap.parse_args()
+    raiz = Path(args.raiz).resolve()
+    print(f"Variante: {args.variante}")
+    patch_config(raiz, args.variante)
     patch_metadados(raiz)
     patch_icones(raiz)
     if erros:
