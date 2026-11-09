@@ -121,6 +121,44 @@ def patch_codigo(raiz: Path):
             "troca de ID com servidor OSS")
 
 
+def patch_layout(raiz: Path):
+    """Paleta Max Mohr, sem "Powered by RustDesk" e tela simplificada na versão usuário
+    (bind.isIncomingOnly()). A versão TI mantém a tela completa, só com as cores novas."""
+    lib = raiz / "flutter/lib"
+    common = lib / "common.dart"
+    for nome, cor in [("accent", "0xFF2F63D4"), ("accent50", "0x772F63D4"), ("accent80", "0xAA2F63D4"),
+                      ("idColor", "0xFF2F63D4"), ("button", "0xFF2F63D4")]:
+        sub_uma(common, rf'static const Color {nome} = Color\(0x[0-9A-Fa-f]{{8}}\);',
+                f'static const Color {nome} = Color({cor});', f"cor {nome}")
+
+    home = lib / "desktop/pages/desktop_home_page.dart"
+    usuario = "bind.isIncomingOnly()"
+    sub_uma(home, r'if \(bind\.isCustomClient\(\)\)\s*Align\(\s*alignment: Alignment\.center,\s*child: loadPowered\(context\),\s*\),',
+            '', 'remover "Powered by RustDesk"')
+    sub_uma(home, r'if \(!isOutgoingOnly\) buildPasswordBoard\(context\),',
+            'if (!isOutgoingOnly && !isIncomingOnly) buildPasswordBoard(context),', "esconder senha na versão usuário")
+    sub_uma(home, r'translate\("ID"\),',
+            f'({usuario} ? "Seu código de acesso" : translate("ID")),', "rótulo do ID")
+    sub_uma(home, r'buildPopupMenu\(context\)(?=\s*\],)',
+            f'if (!{usuario}) buildPopupMenu(context)', "esconder menu na versão usuário")
+    sub_uma(home, r'style: TextStyle\(\s*fontSize: 22,\s*\),',
+            f'style: TextStyle(fontSize: {usuario} ? 30 : 22, '
+            f'fontWeight: {usuario} ? FontWeight.bold : FontWeight.normal, '
+            f'color: {usuario} ? MyTheme.accent : null),', "ID em destaque")
+    sub_uma(home, r'margin: const EdgeInsets\.only\(left: 20, right: 11\),\s*height: 57,',
+            f'margin: const EdgeInsets.only(left: 20, right: 11),\n      height: {usuario} ? 72 : 57,', "altura do ID")
+    sub_uma(home, r'translate\("Your Desktop"\)',
+            f'({usuario} ? "Suporte remoto Max Mohr" : translate("Your Desktop"))', "título")
+    sub_uma(home, r'translate\("desk_tip"\)',
+            f'({usuario} ? "Informe o código abaixo à equipe de TI. Ninguém acessa seu computador '
+            f'sem a sua autorização." : translate("desk_tip"))', "instrução")
+
+    server = lib / "desktop/pages/server_page.dart"
+    sub_uma(server, re.escape('"${translate("Request access to your device")}...",'),
+            f'({usuario} ? "A TI da Max Mohr quer acessar seu computador" : '
+            '"${translate("Request access to your device")}..."),', "texto do pedido de acesso")
+
+
 def patch_metadados(raiz: Path):
     rc = raiz / "flutter/windows/runner/Runner.rc"
     sub_uma(rc, r'VALUE "FileDescription", "[^"]*"',
@@ -247,6 +285,7 @@ def main():
     print(f"Variante: {args.variante}")
     patch_config(raiz, args.variante)
     patch_codigo(raiz)
+    patch_layout(raiz)
     patch_metadados(raiz)
     patch_icones(raiz)
     if erros:
