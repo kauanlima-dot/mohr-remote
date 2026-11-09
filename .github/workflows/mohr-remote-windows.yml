@@ -30,9 +30,17 @@ jobs:
     uses: ./.github/workflows/bridge.yml
 
   windows-x64:
+    name: windows-x64 (${{ matrix.variante }})
     needs: [generate-bridge]
     runs-on: windows-2022
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        # usuario: só recebe acesso, sem configurações | ti: cliente completo do suporte
+        variante: [usuario, ti]
+    env:
+      MOHR_VARIANTE: ${{ matrix.variante }}
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -136,7 +144,7 @@ jobs:
           python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/${APP_NAME}.exe
           popd
           mkdir -p ./SignOutput
-          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/${APP_NAME}-${VERSION}-x86_64.exe
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/${APP_NAME}-${VERSION}-x86_64-${MOHR_VARIANTE}.exe
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
@@ -148,14 +156,14 @@ jobs:
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
-          mv $msi.FullName "../../SignOutput/$env:APP_NAME-$env:VERSION-x86_64.msi"
+          mv $msi.FullName "../../SignOutput/$env:APP_NAME-$env:VERSION-x86_64-$env:MOHR_VARIANTE.msi"
           popd
           Get-FileHash ./SignOutput/* -Algorithm SHA256 | Format-Table -AutoSize
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: mohr-remote-windows-x64
+          name: mohr-remote-windows-x64-${{ matrix.variante }}
           path: ./SignOutput/*
           if-no-files-found: error
 
