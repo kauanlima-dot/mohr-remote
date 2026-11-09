@@ -47,6 +47,12 @@ FIXAS_POR_VARIANTE = {
     "usuario": {"conn-type": "incoming", "disable-settings": "Y"},
     "ti": {},
 }
+# Embutidas (BUILTIN_SETTINGS). Na versão usuário, as configurações ficam escondidas na tela,
+# mas o instalador (SYSTEM) ainda precisa usar --set-id / --option pela linha de comando.
+EMBUTIDAS_POR_VARIANTE = {
+    "usuario": {"allow-command-line-settings-when-settings-disabled": "Y"},
+    "ti": {},
+}
 # -----------------------------------------------------------------------------
 
 erros = []
@@ -100,6 +106,19 @@ def patch_config(raiz: Path, variante: str):
     patch_mapa(cfg, "DEFAULT_SETTINGS", PADROES)
     patch_mapa(cfg, "OVERWRITE_SETTINGS", TRAVADAS)
     patch_mapa(cfg, "HARD_SETTINGS", FIXAS_POR_VARIANTE[variante])
+    patch_mapa(cfg, "BUILTIN_SETTINGS", EMBUTIDAS_POR_VARIANTE[variante])
+
+
+def patch_codigo(raiz: Path):
+    # ID fixo: o servidor OSS responde NOT_SUPPORT à "troca de ID", mas aceita o ID novo no
+    # registro normal. Então gravamos o ID local mesmo assim e o cliente se registra com ele.
+    sub_uma(raiz / "src/ui_interface.rs",
+            r'Ok\(register_pk_response::Result::NOT_SUPPORT\) => \{\s*return "server_not_support";\s*\}',
+            'Ok(register_pk_response::Result::NOT_SUPPORT) => {\n'
+            '                                // Mohr Remote: servidor OSS não troca ID; o novo ID é registrado em seguida.\n'
+            '                                ok = true;\n'
+            '                            }',
+            "troca de ID com servidor OSS")
 
 
 def patch_metadados(raiz: Path):
@@ -227,6 +246,7 @@ def main():
     raiz = Path(args.raiz).resolve()
     print(f"Variante: {args.variante}")
     patch_config(raiz, args.variante)
+    patch_codigo(raiz)
     patch_metadados(raiz)
     patch_icones(raiz)
     if erros:
