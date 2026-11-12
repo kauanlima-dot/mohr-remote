@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:flutter_hbb/mobile/pages/home_page.dart' show PageShape;
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
@@ -1006,5 +1007,52 @@ class _MohrHelpDialogState extends State<_MohrHelpDialog> {
               ),
             ],
     ));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App de celular da TI: aba "Computadores" (mesma lista do app do computador)
+// ---------------------------------------------------------------------------
+
+class MohrPaginaComputadores extends StatelessWidget implements PageShape {
+  MohrPaginaComputadores({Key? key}) : super(key: key);
+
+  @override
+  final String title = 'Computadores';
+
+  @override
+  final Widget icon = const Icon(Icons.computer);
+
+  @override
+  final List<Widget> appBarActions = [
+    IconButton(
+      tooltip: 'Sair da conta',
+      icon: const Icon(Icons.logout),
+      onPressed: () => MohrSession.logout(),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = MohrCor.of(context);
+    return Container(
+      color: cor.fundo,
+      padding: const EdgeInsets.only(left: 12, top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Obx(() => Padding(
+              padding: const EdgeInsets.only(right: 12, bottom: 8),
+              child: Row(children: [
+                Icon(Icons.verified_user, size: 16, color: cor.titulo),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Conectado como ${MohrSession.login.value}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: cor.texto2)),
+                ),
+              ]),
+            )),
+        const Expanded(child: MohrDeviceList()),
+      ]),
+    );
   }
 }
