@@ -693,7 +693,7 @@ class MohrHelpButton extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: SizedBox(
         width: double.infinity,
-        height: 42,
+        height: 56,
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: MyTheme.accent,
@@ -701,7 +701,8 @@ class MohrHelpButton extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           icon: const Icon(Icons.support_agent),
-          label: const Text('Pedir ajuda à TI', style: TextStyle(fontSize: 15)),
+          label: const Text('Pedir ajuda à TI',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           onPressed: () => showDialog(
               context: context, builder: (_) => const _MohrHelpDialog()),
         ),
@@ -770,7 +771,10 @@ class _MohrHelpDialogState extends State<_MohrHelpDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    // Texto maior, como na tela do usuário.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.25)),
+      child: AlertDialog(
       title: const Text('Pedir ajuda à TI'),
       content: SizedBox(
         width: 380,
@@ -814,6 +818,6 @@ class _MohrHelpDialogState extends State<_MohrHelpDialog> {
                 child: Text(_busy ? 'Enviando...' : 'Enviar'),
               ),
             ],
-    );
+    ));
   }
 }
