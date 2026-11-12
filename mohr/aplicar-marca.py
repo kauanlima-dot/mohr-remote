@@ -46,15 +46,18 @@ PADROES = {
 # Por variante do build (env MOHR_VARIANTE ou --variante):
 #   usuario: só recebe acesso, sem tela de conectar e sem configurações
 #   ti:      cliente completo para a equipe de suporte
+#   android: app de celular da TI, só conecta nos computadores (sem compartilhar a tela do celular)
 FIXAS_POR_VARIANTE = {
     "usuario": {"conn-type": "incoming", "disable-settings": "Y"},
     "ti": {},
+    "android": {"conn-type": "outgoing"},
 }
 # Embutidas (BUILTIN_SETTINGS). Na versão usuário, as configurações ficam escondidas na tela,
 # mas o instalador (SYSTEM) ainda precisa usar --set-id / --option pela linha de comando.
 EMBUTIDAS_POR_VARIANTE = {
     "usuario": {"allow-command-line-settings-when-settings-disabled": "Y"},
     "ti": {},
+    "android": {},
 }
 # -----------------------------------------------------------------------------
 
@@ -220,6 +223,52 @@ def patch_login(raiz: Path):
             "import 'package:flutter_hbb/desktop/pages/mohr_login.dart';", "import da lista de computadores")
     sub_uma(conexao, r'Expanded\(child: PeerTabPage\(\)\),',
             "Expanded(child: MohrDevicesPanel(recent: PeerTabPage())),", "lista de computadores do painel")
+    # Celular: login obrigatório e aba "Computadores" (lista do painel) como primeira aba.
+    celular = raiz / "flutter/lib/mobile/pages/home_page.dart"
+    sub_uma(celular, re.escape("import 'connection_page.dart';"),
+            "import 'connection_page.dart';\nimport 'package:flutter_hbb/desktop/pages/mohr_login.dart';",
+            "import da tela de login (celular)")
+    sub_uma(celular, r'_pages\.clear\(\);\s*if \(!bind\.isIncomingOnly\(\)\) \{',
+            "_pages.clear();\n    if (!bind.isIncomingOnly()) {\n      _pages.add(MohrPaginaComputadores());",
+            "aba Computadores (celular)")
+    sub_uma(celular, r'Widget build\(BuildContext context\) \{\s*return WillPopScope\(',
+            "Widget build(BuildContext context) {\n"
+            "    // Mohr Remote: o app do celular exige login com a conta do painel.\n"
+            "    MohrSession.init();\n"
+            "    return Obx(() => !MohrSession.loggedIn.value\n"
+            "        ? const Scaffold(body: SafeArea(child: MohrLoginPage()))\n"
+            "        : WillPopScope(", "trava de login (celular)")
+    sub_uma(celular, r'body: _pages\.elementAt\(_selectedIndex\),\s*\)\);\s*\}',
+            "body: _pages.elementAt(_selectedIndex),\n        )));\n  }", "fecha a trava de login (celular)")
+
+
+def patch_android(raiz: Path):
+    """App Android da TI: nome, identificador próprio (não conflita com o RustDesk oficial) e ícones."""
+    app = raiz / "flutter/android/app"
+    sub_uma(app / "src/main/AndroidManifest.xml", r'android:label="RustDesk"(?=\s*android:roundIcon)',
+            f'android:label="{NOME_EXIBICAO}"', "nome do app (manifest)")
+    sub_uma(app / "src/main/res/values/strings.xml", r'<string name="app_name">RustDesk</string>',
+            f'<string name="app_name">{NOME_EXIBICAO}</string>', "nome do app (strings)")
+    sub_uma(app / "build.gradle", r'applicationId "com\.carriez\.flutter_hbb"',
+            'applicationId "br.com.maxmohr.mohrremote"', "identificador do app")
+    import io
+    from PIL import Image
+    simbolo = Image.open(io.BytesIO(imagem_marca("icone-1024.png"))).convert("RGBA")
+    res = app / "src/main/res"
+    for pasta, lado in [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)]:
+        destino = res / f"mipmap-{pasta}"
+        # Ícone legado: símbolo sobre fundo branco arredondado.
+        fundo = Image.new("RGBA", (lado, lado), (255, 255, 255, 255))
+        fundo.alpha_composite(simbolo.resize((lado, lado), Image.LANCZOS))
+        fundo.save(destino / "ic_launcher.png")
+        fundo.save(destino / "ic_launcher_round.png")
+        # Ícone adaptativo (108 dp): símbolo dentro da área segura central.
+        grande = round(lado * 108 / 48)
+        frente = Image.new("RGBA", (grande, grande), (0, 0, 0, 0))
+        miolo = round(grande * 0.72)
+        frente.alpha_composite(simbolo.resize((miolo, miolo), Image.LANCZOS), ((grande - miolo) // 2, (grande - miolo) // 2))
+        frente.save(destino / "ic_launcher_foreground.png")
+        print(f"ok  ícones Android mipmap-{pasta}")
 
 
 def patch_metadados(raiz: Path):
@@ -369,6 +418,8 @@ def main():
     patch_login(raiz)
     patch_metadados(raiz)
     patch_icones(raiz)
+    if args.variante == "android":
+        patch_android(raiz)
     if erros:
         print("\nFALHOU:", *erros, sep="\n  ")
         sys.exit(1)
