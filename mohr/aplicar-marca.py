@@ -129,10 +129,16 @@ def patch_layout(raiz: Path):
     (bind.isIncomingOnly()). A versão TI mantém a tela completa, só com as cores novas."""
     lib = raiz / "flutter/lib"
     common = lib / "common.dart"
-    for nome, cor in [("accent", "0xFF2F63D4"), ("accent50", "0x772F63D4"), ("accent80", "0xAA2F63D4"),
-                      ("idColor", "0xFF2F63D4"), ("button", "0xFF2F63D4")]:
+    # Padrão visual Max Mohr v1.0: Azul Max Mohr #162D8C (primário), Azul Médio #2E74D1 (ID).
+    for nome, cor in [("accent", "0xFF162D8C"), ("accent50", "0x77162D8C"), ("accent80", "0xAA162D8C"),
+                      ("idColor", "0xFF2E74D1"), ("button", "0xFF162D8C"), ("grayBg", "0xFFF0F0EF")]:
         sub_uma(common, rf'static const Color {nome} = Color\(0x[0-9A-Fa-f]{{8}}\);',
                 f'static const Color {nome} = Color({cor});', f"cor {nome}")
+    # Fonte oficial Rigid Square (instalada nos PCs da empresa; sem ela, o Windows usa a fonte padrão).
+    sub_uma(common, r'useMaterial3: false,\s*brightness: Brightness\.light,',
+            "useMaterial3: false,\n    brightness: Brightness.light,\n    fontFamily: 'Rigid Square',", "fonte do tema claro")
+    sub_uma(common, r'useMaterial3: false,\s*brightness: Brightness\.dark,',
+            "useMaterial3: false,\n    brightness: Brightness.dark,\n    fontFamily: 'Rigid Square',", "fonte do tema escuro")
 
     home = lib / "desktop/pages/desktop_home_page.dart"
     usuario = "bind.isIncomingOnly()"
@@ -293,14 +299,16 @@ def patch_icones(raiz: Path):
     logo = marca / "logo.png"
     from PIL import Image  # pip install pillow
 
+    import io
     if logo.exists():
         img = Image.open(logo).convert("RGBA")
         if img.width != img.height or img.width < 256:
             erros.append(f"{logo}: precisa ser quadrado e >= 256 px (ideal 1024x1024); veio {img.size}")
             return
     else:
-        print("mohr/marca/logo.png não existe — usando o ícone Mohr Remote desenhado pelo script")
-        img = desenhar_simbolo()
+        # Símbolo oficial Max Mohr (favicon.svg do padrão visual v1.0, renderizado em 1024 px).
+        print("usando o símbolo oficial Max Mohr (padrão visual v1.0)")
+        img = Image.open(io.BytesIO(imagem_marca("icone-1024.png"))).convert("RGBA")
 
     def png(dst: Path, lado: int):
         img.resize((lado, lado), Image.LANCZOS).save(dst)
@@ -322,16 +330,31 @@ def patch_icones(raiz: Path):
     png(raiz / "flutter/assets/icon.png", 256)
 
     # Logo do cabeçalho (máx. 300x60 na tela). Opcional: mohr/marca/logo-horizontal.png
-    horiz = marca / "logo-horizontal.png"
-    if horiz.exists():
-        (raiz / "flutter/assets/logo.png").write_bytes(horiz.read_bytes())
-        print("ok  flutter/assets/logo.png")
-    else:
-        gerado = desenhar_logo_horizontal(img)
-        if gerado:
-            gerado.save(raiz / "flutter/assets/logo.png")
-            print("ok  flutter/assets/logo.png (gerado)")
+    # Logo horizontal oficial Max Mohr: colorido no tema claro, branco no tema escuro.
+    claro = imagem_marca("logo_light.png")
+    escuro = imagem_marca("logo_dark.png")
+    for nome, dados in [("logo.png", claro), ("logo_light.png", claro), ("logo_dark.png", escuro)]:
+        (raiz / "flutter/assets" / nome).write_bytes(dados)
+        print(f"ok  flutter/assets/{nome}")
 
+
+# Imagens oficiais do padrão visual Max Mohr v1.0 (SVG do Marketing renderizados em PNG),
+# publicadas no painel. O build baixa e confere o SHA-256: se não bater, o build falha.
+IMAGENS_MARCA = {
+    "icone-1024.png": "c4ac29be38201ea19f30953a54c8b0a44b8d23573152017eafef26566c904382",
+    "logo_light.png": "c64f78bdd9f24ef1ecae9f0a7d9f063f92fb0b74b7c26d77b8def74e03612221",
+    "logo_dark.png": "cec5ae407654706580474429eaaaaab6975ef54950f3d77a078c320b8f70c83c",
+}
+
+
+def imagem_marca(nome: str) -> bytes:
+    import hashlib
+    import urllib.request
+    with urllib.request.urlopen(f"{PAINEL}/marca/{nome}", timeout=60) as resposta:
+        dados = resposta.read()
+    if hashlib.sha256(dados).hexdigest() != IMAGENS_MARCA[nome]:
+        raise RuntimeError(f"{nome}: SHA-256 não confere")
+    return dados
 
 def main():
     ap = argparse.ArgumentParser()
