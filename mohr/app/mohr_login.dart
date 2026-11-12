@@ -11,8 +11,11 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/mobile/pages/home_page.dart' show PageShape;
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 const String kMohrPanel = 'https://remoto.maxmohr.com.br';
+// Número do build do app Android (definido no CI com --dart-define=MOHR_BUILD). 0 = computador.
+const int kMohrBuild = int.fromEnvironment('MOHR_BUILD', defaultValue: 0);
 const String _kToken = 'mohr-app-token';
 const String _kLogin = 'mohr-app-login';
 const String _kExpires = 'mohr-app-expires';
@@ -1051,7 +1054,78 @@ class MohrPaginaComputadores extends StatelessWidget implements PageShape {
                 ),
               ]),
             )),
+        const MohrAvisoAtualizacao(),
         const Expanded(child: MohrDeviceList()),
+      ]),
+    );
+  }
+}
+
+/// Celular: avisa quando há uma versão nova do app no painel (atualiza por cima, sem desinstalar).
+class MohrAvisoAtualizacao extends StatefulWidget {
+  const MohrAvisoAtualizacao({Key? key}) : super(key: key);
+
+  @override
+  State<MohrAvisoAtualizacao> createState() => _MohrAvisoAtualizacaoState();
+}
+
+class _MohrAvisoAtualizacaoState extends State<MohrAvisoAtualizacao> {
+  String? _url;
+  String _versao = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _verificar();
+  }
+
+  Future<void> _verificar() async {
+    if (!Platform.isAndroid || kMohrBuild == 0) return;
+    try {
+      final data = await MohrSession.api('/api/app/android') as Map;
+      final build = (data['build'] as num?)?.toInt() ?? 0;
+      if (build > kMohrBuild && mounted) {
+        setState(() {
+          _url = _s(data['url']);
+          _versao = _s(data['versao']);
+        });
+      }
+    } catch (_) {
+      // Sem rede: tenta de novo na próxima vez que abrir o app.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_url == null) return const SizedBox.shrink();
+    final cor = MohrCor.of(context);
+    return Container(
+      margin: const EdgeInsets.only(right: 12, bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cor.superficie,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cor.borda),
+      ),
+      child: Row(children: [
+        Icon(Icons.system_update, color: cor.titulo),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Nova versão do Mohr Remote',
+                style: TextStyle(fontWeight: FontWeight.w700, color: cor.titulo)),
+            Text(
+                _versao.isEmpty
+                    ? 'Toque em Atualizar e confirme a instalação.'
+                    : '$_versao · toque em Atualizar e confirme a instalação.',
+                style: TextStyle(fontSize: 12, color: cor.texto2)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        MohrBotao(
+          texto: 'Atualizar',
+          onPressed: () => launchUrl(Uri.parse(_url!), mode: LaunchMode.externalApplication),
+        ),
       ]),
     );
   }
