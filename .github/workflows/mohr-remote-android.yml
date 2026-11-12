@@ -137,16 +137,17 @@ jobs:
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
-          # Sem chave de assinatura própria ainda: assina com a chave de debug (instalação manual/Intune).
+          # O CI assina com a chave de debug; a VPS reassina com a chave da Max Mohr ao publicar.
           sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
           mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
           cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/
           cp ./target/aarch64-linux-android/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
           pushd flutter
-          flutter build apk --release --target-platform android-arm64 --split-per-abi
+          # Número do build = versionCode (o app compara com o painel para avisar de atualização).
+          flutter build apk --release --target-platform android-arm64 --build-number ${{ github.run_number }} --dart-define=MOHR_BUILD=${{ github.run_number }}
           popd
           mkdir -p out
-          mv flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk out/MohrRemote-TI-${VERSION}-android-arm64.apk
+          mv flutter/build/app/outputs/flutter-apk/app-release.apk out/MohrRemote-TI-${VERSION}-android-arm64-build${{ github.run_number }}.apk
           sha256sum out/*
 
       - name: Upload artifact
