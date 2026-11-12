@@ -137,6 +137,151 @@ class MohrApiError implements Exception {
   String toString() => message;
 }
 
+// ---------------------------------------------------------------------------
+// Padrão visual Max Mohr v1.0 (tokens do Marketing), claro e escuro.
+// ---------------------------------------------------------------------------
+
+class MohrCor {
+  final bool escuro;
+  MohrCor.of(BuildContext context)
+      : escuro = Theme.of(context).brightness == Brightness.dark;
+
+  static const azul = Color(0xFF162D8C); // Azul Max Mohr
+  static const azulDestaque = Color(0xFF0539B7);
+  static const azulMedio = Color(0xFF2E74D1);
+  static const azulClaro = Color(0xFF69ADE5);
+
+  Color get fundo => escuro ? const Color(0xFF0E1224) : const Color(0xFFF0F0EF);
+  Color get superficie => escuro ? const Color(0xFF161B33) : Colors.white;
+  Color get superficieAlt => escuro ? const Color(0xFF1D2440) : const Color(0xFFF1F4F8);
+  Color get titulo => escuro ? const Color(0xFFEEF0F6) : azul;
+  Color get texto => escuro ? const Color(0xFFEEF0F6) : const Color(0xFF14182A);
+  Color get texto2 => escuro ? const Color(0xFFB4B9C8) : const Color(0xFF5C606A);
+  Color get borda => escuro ? const Color(0xFF2A3253) : const Color(0xFFDADCE0);
+  Color get link => escuro ? const Color(0xFF8FB0F7) : azulDestaque;
+  Color get sucesso => escuro ? const Color(0xFF4CC26A) : const Color(0xFF1A7F37);
+  Color get sucessoFundo => escuro ? const Color(0x244CC26A) : const Color(0xFFE6F4EA);
+  Color get alerta => escuro ? const Color(0xFFFAB219) : const Color(0xFF8A5A00);
+  Color get alertaFundo => escuro ? const Color(0x24FAB219) : const Color(0xFFFEF4DC);
+  Color get erro => escuro ? const Color(0xFFF5736C) : const Color(0xFFC2312F);
+  Color get erroFundo => escuro ? const Color(0x24F5736C) : const Color(0xFFFBE9E8);
+
+  LinearGradient get gradPrimario => LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: escuro
+          ? const [Color(0xFF3A4FD0), Color(0xFF4A63E0)]
+          : const [azul, azulDestaque]);
+  LinearGradient get gradAssinatura => LinearGradient(
+      colors: escuro
+          ? const [Color(0xFF5060E6), Color(0xFF4F74EA), Color(0xFF3E9ED0), azulClaro]
+          : const [azul, azulDestaque, azulMedio, azulClaro],
+      stops: const [0, .35, .7, 1]);
+}
+
+/// Filete de 3 px com os 4 azuis do símbolo (sob títulos).
+class MohrFilete extends StatelessWidget {
+  final double largura;
+  const MohrFilete({Key? key, this.largura = 72}) : super(key: key);
+  @override
+  Widget build(BuildContext context) => Container(
+        width: largura,
+        height: 3,
+        decoration: BoxDecoration(
+            gradient: MohrCor.of(context).gradAssinatura,
+            borderRadius: BorderRadius.circular(2)),
+      );
+}
+
+/// Botão principal da marca (degradê azul, raio 10).
+class MohrBotao extends StatelessWidget {
+  final String texto;
+  final IconData? icone;
+  final VoidCallback? onPressed;
+  final double altura;
+  final double fonte;
+  const MohrBotao(
+      {Key? key,
+      required this.texto,
+      this.icone,
+      this.onPressed,
+      this.altura = 40,
+      this.fonte = 14})
+      : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    final cor = MohrCor.of(context);
+    final ativo = onPressed != null;
+    return Opacity(
+      opacity: ativo ? 1 : .6,
+      child: Container(
+        height: altura,
+        decoration: BoxDecoration(
+          gradient: cor.gradPrimario,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(color: Color(0x380539B7), blurRadius: 8, offset: Offset(0, 2))
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onPressed,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icone != null) ...[
+                    Icon(icone, size: fonte + 4, color: Colors.white),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(texto,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: fonte,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Status sempre com ícone + rótulo.
+class MohrStatus extends StatelessWidget {
+  final IconData icone;
+  final String rotulo;
+  final Color cor;
+  final Color fundo;
+  const MohrStatus(
+      {Key? key,
+      required this.icone,
+      required this.rotulo,
+      required this.cor,
+      required this.fundo})
+      : super(key: key);
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration:
+            BoxDecoration(color: fundo, borderRadius: BorderRadius.circular(6)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icone, size: 14, color: cor),
+          const SizedBox(width: 6),
+          Text(rotulo,
+              style: TextStyle(
+                  color: cor, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
+      );
+}
+
 class MohrLoginPage extends StatefulWidget {
   const MohrLoginPage({Key? key}) : super(key: key);
 
@@ -175,91 +320,117 @@ class _MohrLoginPageState extends State<MohrLoginPage> {
     });
   }
 
-  Widget _field(TextEditingController c, String label, IconData icon,
+  // Rótulo sempre visível acima do campo (padrão Max Mohr).
+  Widget _field(MohrCor cor, TextEditingController c, String label, IconData icon,
       {bool obscure = false, bool number = false}) {
-    return TextField(
-      controller: c,
-      obscureText: obscure,
-      keyboardType: number ? TextInputType.number : TextInputType.text,
-      maxLength: number ? 6 : null,
-      onSubmitted: (_) => _submit(),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        counterText: '',
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label,
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600, color: cor.texto)),
+      const SizedBox(height: 6),
+      TextField(
+        controller: c,
+        obscureText: obscure,
+        keyboardType: number ? TextInputType.number : TextInputType.text,
+        maxLength: number ? 6 : null,
+        onSubmitted: (_) => _submit(),
+        style: TextStyle(fontSize: 14, color: cor.texto),
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, size: 20, color: cor.texto2),
+          counterText: '',
+          isDense: true,
+          filled: true,
+          fillColor: cor.superficie,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cor.borda, width: 1.5)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cor.link, width: 1.5)),
+        ),
       ),
-    );
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final cor = MohrCor.of(context);
     return Container(
-      color: theme.scaffoldBackgroundColor,
+      color: cor.fundo,
       alignment: Alignment.center,
       child: SingleChildScrollView(
         child: Container(
-          width: 360,
-          padding: const EdgeInsets.all(28),
+          width: 380,
+          padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: theme.colorScheme.background,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8))
+            color: cor.superficie,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: cor.borda),
+            boxShadow: const [
+              BoxShadow(color: Color(0x1A14182A), blurRadius: 12, offset: Offset(0, 4))
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(child: loadLogo()),
-              const SizedBox(height: 16),
-              Text('Entrar no Mohr Remote',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('Use sua conta do painel da TI Max Mohr',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall),
+              Align(alignment: Alignment.centerLeft, child: loadLogo()),
               const SizedBox(height: 20),
-              _field(_user, 'Usuário', Icons.person_outline),
+              Text('MOHR REMOTE · TI MAX MOHR',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.6,
+                      color: cor.texto2)),
+              const SizedBox(height: 6),
+              Text.rich(
+                TextSpan(children: [
+                  const TextSpan(
+                      text: 'Entrar no ',
+                      style: TextStyle(fontWeight: FontWeight.w300)),
+                  const TextSpan(
+                      text: 'Mohr Remote',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ]),
+                style: TextStyle(fontSize: 26, color: cor.titulo, height: 1.15),
+              ),
               const SizedBox(height: 12),
-              _field(_pass, 'Senha', Icons.lock_outline, obscure: true),
+              const MohrFilete(),
               const SizedBox(height: 12),
-              _field(_code, 'Código do autenticador (só administrador)',
+              Text('Use sua conta do painel da TI Max Mohr.',
+                  style: TextStyle(fontSize: 14, color: cor.texto2)),
+              const SizedBox(height: 20),
+              _field(cor, _user, 'Usuário', Icons.person_outline),
+              const SizedBox(height: 14),
+              _field(cor, _pass, 'Senha', Icons.lock_outline, obscure: true),
+              const SizedBox(height: 14),
+              _field(cor, _code, 'Código do autenticador (só administrador)',
                   Icons.verified_user_outlined,
                   number: true),
               if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(_error!,
-                      style: const TextStyle(color: Colors.redAccent)),
-                ),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 44,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: MyTheme.accent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cor.erroFundo,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border(left: BorderSide(color: cor.erro, width: 4)),
                   ),
-                  onPressed: _busy ? null : _submit,
-                  child: _busy
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Entrar', style: TextStyle(fontSize: 16)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.error_outline, size: 18, color: cor.erro),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(_error!,
+                            style: TextStyle(fontSize: 14, color: cor.texto))),
+                  ]),
                 ),
+              const SizedBox(height: 22),
+              MohrBotao(
+                texto: _busy ? 'Entrando...' : 'Entrar',
+                altura: 44,
+                fonte: 16,
+                onPressed: _busy ? null : _submit,
               ),
             ],
           ),
@@ -279,7 +450,7 @@ class MohrSessionBar extends StatelessWidget {
           padding: const EdgeInsets.only(left: 20, right: 12, top: 8),
           child: Row(
             children: [
-              const Icon(Icons.verified_user, size: 16, color: MyTheme.accent),
+              const Icon(Icons.verified_user, size: 16, color: MohrCor.azulMedio),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(MohrSession.login.value,
@@ -352,7 +523,7 @@ class _MohrDevicesPanelState extends State<MohrDevicesPanel> {
 
   Widget _tabButton(int index, IconData icon, String label) {
     final selected = _tab == index;
-    final color = selected ? MyTheme.accent : null;
+    final color = selected ? MohrCor.of(context).titulo : MohrCor.of(context).texto2;
     return TextButton.icon(
       onPressed: () => setState(() => _tab = index),
       icon: Icon(icon, size: 18, color: color),
@@ -484,10 +655,11 @@ class _MohrDeviceListState extends State<MohrDeviceList> {
   }
 
   Widget _header(BuildContext context) {
+    final cor = MohrCor.of(context);
     final online = _devices.where((d) => d.online == true).length;
     final help = _devices.where((d) => d.help != null).length;
     return Padding(
-      padding: const EdgeInsets.only(right: 12, bottom: 8),
+      padding: const EdgeInsets.only(right: 12, bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -496,42 +668,55 @@ class _MohrDeviceListState extends State<MohrDeviceList> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
+                style: TextStyle(fontSize: 14, color: cor.texto),
                 decoration: InputDecoration(
                   isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  hintText: 'Buscar por nome, ID, usuário ou departamento',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                  filled: true,
+                  fillColor: cor.superficie,
+                  prefixIcon: Icon(Icons.search, size: 20, color: cor.texto2),
+                  hintText: 'Buscar por nome, código, usuário ou departamento',
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: cor.borda, width: 1.5)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: cor.link, width: 1.5)),
                 ),
               ),
             ),
             const SizedBox(width: 6),
             IconButton(
-              tooltip: 'Atualizar',
-              icon: const Icon(Icons.refresh),
+              tooltip: 'Atualizar a lista',
+              icon: Icon(Icons.refresh, color: cor.titulo),
               onPressed: () => _load(),
             ),
           ]),
-          const SizedBox(height: 6),
-          Row(children: [
-            Text('$online de ${_devices.length} online',
-                style: Theme.of(context).textTheme.bodySmall),
-            if (help > 0) ...[
-              const SizedBox(width: 12),
-              const Icon(Icons.support_agent, size: 16, color: Colors.orange),
-              const SizedBox(width: 4),
-              Text('$help pedido(s) de ajuda',
-                  style: const TextStyle(color: Colors.orange, fontSize: 12)),
-            ],
-            const Spacer(),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            MohrStatus(
+                icone: Icons.check,
+                rotulo: '$online de ${_devices.length} online',
+                cor: cor.sucesso,
+                fundo: cor.sucessoFundo),
+            if (help > 0)
+              MohrStatus(
+                  icone: Icons.support_agent,
+                  rotulo: '$help pedido(s) de ajuda',
+                  cor: cor.alerta,
+                  fundo: cor.alertaFundo),
             InkWell(
+              borderRadius: BorderRadius.circular(6),
               onTap: () => setState(() => _onlyOnline = !_onlyOnline),
-              child: Row(children: [
-                Icon(_onlyOnline ? Icons.check_box : Icons.check_box_outline_blank,
-                    size: 18),
-                const SizedBox(width: 4),
-                Text('Só online', style: Theme.of(context).textTheme.bodySmall),
-              ]),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_onlyOnline ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 18, color: cor.titulo),
+                  const SizedBox(width: 4),
+                  Text('Só online', style: TextStyle(fontSize: 13, color: cor.texto2)),
+                ]),
+              ),
             ),
           ]),
         ],
@@ -540,103 +725,110 @@ class _MohrDeviceListState extends State<MohrDeviceList> {
   }
 
   Widget _row(BuildContext context, MohrDevice d) {
-    final theme = Theme.of(context);
-    final dot = d.online == true
-        ? Colors.green
-        : (d.online == false ? Colors.grey : Colors.blueGrey.shade200);
+    final cor = MohrCor.of(context);
     final details = [d.branch, d.department, d.user].where((s) => s.isNotEmpty).join(' · ');
     final hasHelp = d.help != null;
-    return Card(
-      margin: const EdgeInsets.only(right: 12, bottom: 6),
-      elevation: 0,
-      color: hasHelp ? Colors.orange.withOpacity(0.08) : theme.cardColor,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: BorderSide(color: hasHelp ? Colors.orange : theme.dividerColor)),
-      child: InkWell(
+    final status = d.online == true
+        ? MohrStatus(icone: Icons.check, rotulo: 'Online', cor: cor.sucesso, fundo: cor.sucessoFundo)
+        : MohrStatus(
+            icone: Icons.do_not_disturb_on_outlined,
+            rotulo: d.online == false ? 'Offline' : 'Sem status',
+            cor: cor.texto2,
+            fundo: cor.superficieAlt);
+    return Container(
+      margin: const EdgeInsets.only(right: 12, bottom: 8),
+      decoration: BoxDecoration(
+        color: cor.superficie,
         borderRadius: BorderRadius.circular(10),
-        onDoubleTap: () => _connect(d),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(children: [
-            Tooltip(
-              message: d.online == true
-                  ? 'Online'
-                  : (d.online == false ? 'Offline' : 'Status indisponível'),
-              child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Flexible(
-                      child: Text(d.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(d.rustId, style: theme.textTheme.bodySmall),
-                  ]),
-                  if (details.isNotEmpty)
-                    Text(details,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall),
-                  if (d.diskAlert)
-                    Text(
-                        'Disco quase cheio: ${d.diskFree!.toStringAsFixed(0)} GB livres',
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                  if (hasHelp)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(children: [
-                        const Icon(Icons.support_agent, size: 16, color: Colors.orange),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text('Pediu ajuda: ${_s(d.help!['message'])}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.orange, fontSize: 12)),
+        border: Border.all(color: hasHelp ? cor.alerta : cor.borda),
+        boxShadow: const [BoxShadow(color: Color(0x0F14182A), blurRadius: 3, offset: Offset(0, 1))],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onDoubleTap: () => _connect(d),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Flexible(
+                        child: Text(d.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w700, color: cor.titulo)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(d.rustId, style: TextStyle(fontSize: 13, color: cor.texto2)),
+                    ]),
+                    if (details.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(details,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: cor.texto2)),
+                      ),
+                    const SizedBox(height: 6),
+                    Wrap(spacing: 6, runSpacing: 4, children: [
+                      status,
+                      if (d.diskAlert)
+                        MohrStatus(
+                            icone: Icons.storage,
+                            rotulo: 'Disco quase cheio · ${d.diskFree!.toStringAsFixed(0)} GB livres',
+                            cor: cor.alerta,
+                            fundo: cor.alertaFundo),
+                    ]),
+                    if (hasHelp)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: cor.alertaFundo,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border(left: BorderSide(color: const Color(0xFFFAB219), width: 3)),
                         ),
-                      ]),
-                    ),
-                ],
+                        child: Row(children: [
+                          Icon(Icons.support_agent, size: 16, color: cor.alerta),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text('Pediu ajuda: ${_s(d.help!['message'])}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: cor.texto, fontSize: 13)),
+                          ),
+                        ]),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              tooltip: d.favorite ? 'Remover dos favoritos' : 'Favoritar',
-              icon: Icon(d.favorite ? Icons.star : Icons.star_border,
-                  color: d.favorite ? Colors.amber : null),
-              onPressed: () => _post('/api/app/favorite', d),
-            ),
-            if (hasHelp)
               IconButton(
-                tooltip: 'Marcar o pedido de ajuda como resolvido',
-                icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-                onPressed: () => _post('/api/app/help/resolve', d,
-                    id: (d.help!['id'] as num).toInt()),
+                tooltip: d.favorite ? 'Remover dos favoritos' : 'Favoritar',
+                icon: Icon(d.favorite ? Icons.star : Icons.star_border, color: cor.titulo),
+                onPressed: () => _post('/api/app/favorite', d),
               ),
-            const SizedBox(width: 4),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: MyTheme.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+              if (hasHelp)
+                IconButton(
+                  tooltip: 'Marcar o pedido de ajuda como resolvido',
+                  icon: Icon(Icons.check_circle_outline, color: cor.sucesso),
+                  onPressed: () => _post('/api/app/help/resolve', d,
+                      id: (d.help!['id'] as num).toInt()),
+                ),
+              const SizedBox(width: 4),
+              MohrBotao(
+                texto: _busy == d.id ? 'Abrindo...' : 'Conectar',
+                icone: Icons.open_in_new,
+                onPressed: _busy == null ? () => _connect(d) : null,
               ),
-              onPressed: _busy == null ? () => _connect(d) : null,
-              child: Text(_busy == d.id ? 'Abrindo...' : 'Conectar'),
-            ),
-          ]),
+            ]),
+          ),
         ),
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
@@ -693,16 +885,11 @@ class MohrHelpButton extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: SizedBox(
         width: double.infinity,
-        height: 56,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: MyTheme.accent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          icon: const Icon(Icons.support_agent),
-          label: const Text('Pedir ajuda à TI',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        child: MohrBotao(
+          texto: 'Pedir ajuda à TI',
+          icone: Icons.support_agent,
+          altura: 52,
+          fonte: 16,
           onPressed: () => showDialog(
               context: context, builder: (_) => const _MohrHelpDialog()),
         ),
@@ -799,7 +986,7 @@ class _MohrHelpDialogState extends State<_MohrHelpDialog> {
                     ),
                   ),
                   if (_error != null)
-                    Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                    Text(_error!, style: TextStyle(color: MohrCor.of(context).erro)),
                 ],
               ),
       ),
