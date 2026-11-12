@@ -149,7 +149,19 @@ def patch_layout(raiz: Path):
             f'fontWeight: {usuario} ? FontWeight.bold : FontWeight.normal, '
             f'color: {usuario} ? MyTheme.accent : null),', "ID em destaque")
     sub_uma(home, r'margin: const EdgeInsets\.only\(left: 20, right: 11\),\s*height: 57,',
-            f'margin: const EdgeInsets.only(left: 20, right: 11),\n      height: {usuario} ? 72 : 57,', "altura do ID")
+            f'margin: const EdgeInsets.only(left: 20, right: 11),\n      height: {usuario} ? 104 : 57,', "altura do ID")
+    # Versão usuário: janela mais larga e todo o texto 30% maior (mais fácil de ler).
+    sub_uma(home, r'return ChangeNotifierProvider\.value\(\s*value: gFFI\.serverModel,\s*child: Container\(\s*width: isIncomingOnly \? 280\.0 : 200\.0,',
+            "return MediaQuery(\n"
+            "      data: isIncomingOnly\n"
+            "          ? MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.3))\n"
+            "          : MediaQuery.of(context),\n"
+            "      child: ChangeNotifierProvider.value(\n"
+            "      value: gFFI.serverModel,\n"
+            "      child: Container(\n"
+            "        width: isIncomingOnly ? 400.0 : 200.0,", "tela do usuário maior")
+    sub_uma(home, r'\);\s*\}\s*buildRightPane\(',
+            "));\n  }\n\n  buildRightPane(", "fecha a escala de texto")
     sub_uma(home, r'translate\("Your Desktop"\)',
             f'({usuario} ? "Suporte remoto Max Mohr" : translate("Your Desktop"))', "título")
     sub_uma(home, r'translate\("desk_tip"\)',
