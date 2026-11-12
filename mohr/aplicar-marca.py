@@ -25,6 +25,7 @@ EMPRESA = "Max Mohr"
 SERVIDOR_ID = "143.95.172.62"            # porta 21116 é o padrão
 SERVIDOR_RELAY = "143.95.172.62:21117"
 CHAVE = "qCsOGI3q3tT5EuSoLJn0GODVRGzKBA2X4uN9497qz8Q="
+PAINEL = "https://remoto.maxmohr.com.br"
 
 # Travadas: o usuário não consegue mudar (aparecem bloqueadas na tela de configurações).
 TRAVADAS = {
@@ -34,6 +35,8 @@ TRAVADAS = {
     "approve-mode": "password",           # acesso só com a senha definida na instalação, sem pedir permissão
     "verification-method": "use-permanent-password",
     "allow-websocket": "N",
+    # O programa envia ao painel: heartbeat, dados do PC (sysinfo) e cada acesso (histórico de sessões).
+    "api-server": PAINEL,
 }
 # Padrão: valem até alguém mudar.
 PADROES = {
@@ -188,6 +191,17 @@ def patch_login(raiz: Path):
     sub_uma(home, r'child: loadLogo\(\),\s*\),',
             "child: loadLogo(),\n      ),\n      if (!isIncomingOnly) const MohrSessionBar(),",
             "barra do técnico logado")
+    # Versão do usuário: botão "Pedir ajuda à TI" logo abaixo do código de acesso.
+    sub_uma(home, r'if \(!isOutgoingOnly && !isIncomingOnly\) buildPasswordBoard\(context\),',
+            "if (!isOutgoingOnly && !isIncomingOnly) buildPasswordBoard(context),\n"
+            "      if (isIncomingOnly) const MohrHelpButton(),", "botão Pedir ajuda")
+    # Versão TI: lista de computadores do painel no lugar da lista de recentes (que vira uma aba).
+    conexao = raiz / "flutter/lib/desktop/pages/connection_page.dart"
+    sub_uma(conexao, re.escape("import 'package:flutter_hbb/models/peer_model.dart';"),
+            "import 'package:flutter_hbb/models/peer_model.dart';\n"
+            "import 'package:flutter_hbb/desktop/pages/mohr_login.dart';", "import da lista de computadores")
+    sub_uma(conexao, r'Expanded\(child: PeerTabPage\(\)\),',
+            "Expanded(child: MohrDevicesPanel(recent: PeerTabPage())),", "lista de computadores do painel")
 
 
 def patch_metadados(raiz: Path):
